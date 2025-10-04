@@ -158,6 +158,8 @@ from .utils import (
     filesize_from_tbr,
     timetuple_from_msec,
     to_high_limit_path,
+    download_range_func,
+    parse_optional_ranges,
     traverse_obj,
     try_call,
     try_get,
@@ -620,6 +622,13 @@ class YoutubeDL:
         if params is None:
             params = {}
         self.params = params
+        if 'download_ranges' not in self.params and 'download_sections' in self.params:
+            self.params['download_ranges'] = self.params['download_sections']
+
+        if 'download_ranges' in self.params and not callable(self.params['download_ranges']):
+            chapters, ranges, from_url = parse_optional_ranges('--download-sections', self.params['download_ranges'], advanced=True)
+            self.params['download_ranges'] = download_range_func(chapters, ranges, from_url)
+
         self._ies = {}
         self._ies_instances = {}
         self._pps = {k: [] for k in POSTPROCESS_WHEN}
