@@ -26,6 +26,7 @@ from yt_dlp.utils import (
     OnDemandPagedList,
     int_or_none,
     match_filter_func,
+    parse_optional_ranges,
 )
 from yt_dlp.utils.traversal import traverse_obj
 
@@ -176,6 +177,7 @@ class TestFormatSelection(unittest.TestCase):
         downloaded = ydl.downloaded_info_dicts[0]
         self.assertEqual(downloaded['format_id'], 'vid-high')
 
+
     def test_format_selection_audio_exts(self):
         formats = [
             {'format_id': 'mp3-64', 'ext': 'mp3', 'abr': 64, 'url': 'http://_', 'vcodec': 'none'},
@@ -197,6 +199,7 @@ class TestFormatSelection(unittest.TestCase):
         ydl.process_ie_result(copy.deepcopy(info_dict))
         downloaded = ydl.downloaded_info_dicts[0]
         self.assertEqual(downloaded['format_id'], 'mp3-64')
+
 
         ydl = YDL({'prefer_free_formats': True, 'format_sort': ['abr', 'ext']})
         ydl.sort_formats(info_dict)
@@ -618,6 +621,33 @@ class TestFormatSelection(unittest.TestCase):
         ydl = YDL({})
         self.assertEqual(ydl._default_format_spec({}), 'bestvideo*+bestaudio/best')
         self.assertEqual(ydl._default_format_spec({'is_live': True}), 'best/bestvideo+bestaudio')
+
+
+class TestDownloadSectionRanges(unittest.TestCase):
+    def test_download_sections_combined_range_and_chapter(self):
+        params = {'download_sections': '*10-20,intro'}
+        ydl = YoutubeDL(params)
+        self.assertIn('download_ranges', ydl.params)
+
+        info_dict = {
+            'id': 'test',
+            'duration': 40,
+            'chapters': [
+                {'title': 'intro', 'start_time': 0, 'end_time': 5},
+                {'title': 'main', 'start_time': 5, 'end_time': 30},
+            ],
+        }
+
+        yielded = list(ydl.params['download_ranges'](info_dict, ydl))
+        expected_chapters, expected_ranges, _ = parse_optional_ranges(params['download_sections'])
+
+        self.assertEqual(len(yielded), 2)
+        self.assertTrue(any(entry.get('title') == 'intro' for entry in yielded))
+        self.assertIn({
+            'start_time': expected_ranges[0][0],
+            'end_time': expected_ranges[0][1],
+        }, yielded)
+        self.assertEqual(len(expected_chapters), 1)
 
 
 class TestYoutubeDL(unittest.TestCase):

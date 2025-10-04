@@ -3300,6 +3300,70 @@ def match_str(filter_str, dct, incomplete=False):
         for filter_part in re.split(r'(?<!\\)&', filter_str))
 
 
+def parse_optional_ranges(value, name='--download-sections', advanced=True):
+    """Parse mixed chapter/time range definitions from CLI/API parameters."""
+
+    if value is None:
+        return [], [], False
+
+    parse_timestamp = lambda x: float('inf') if x in ('inf', 'infinite') else parse_duration(x)
+    timestamp_re = r'''(?x)(?:
+        (?P<start_sign>-?)(?P<start>[^-]+)
+    )?\s*-\s*(?:
+        (?P<end_sign>-?)(?P<end>[^-]+)
+    )?'''
+
+    chapters, ranges, from_url = [], [], False
+
+    for entry in variadic(value):
+        if entry is None:
+            continue
+        for token in map(str.strip, str(entry).split(',')):
+            if not token:
+                raise ValueError(f'invalid {name} entry: empty value')
+
+            if advanced and token == '*from-url':
+                from_url = True
+                continue
+
+            if token.startswith('*'):
+                range_token = token[1:].strip()
+                if not range_token:
+                    raise ValueError(f'invalid {name} time range "{token}". Must be of the form "*start-end"')
+
+                mobj = range_token != '-' and re.fullmatch(timestamp_re, range_token)
+                if not mobj:
+                    raise ValueError(f'invalid {name} time range "{token}". Must be of the form "*start-end"')
+
+                dur = [
+                    parse_timestamp(mobj.group('start') or '0'),
+                    parse_timestamp(mobj.group('end') or 'inf'),
+                ]
+                if None in dur:
+                    raise ValueError(f'invalid {name} time range "{token}". Must be of the form "*start-end"')
+
+                signs = (mobj.group('start_sign'), mobj.group('end_sign'))
+                if not advanced and any(signs):
+                    raise ValueError(f'invalid {name} time range "{token}". Negative timestamps are not allowed')
+
+                if signs[0]:
+                    dur[0] *= -1
+                if signs[1]:
+                    dur[1] *= -1
+                if dur[1] == float('-inf'):
+                    raise ValueError(f'invalid {name} time range "{token}". "-inf" is not a valid end')
+
+                ranges.append(tuple(dur))
+                continue
+
+            try:
+                chapters.append(re.compile(token))
+            except re.error as err:
+                raise ValueError(f'invalid {name} regex "{token}" - {err}')
+
+    return chapters, ranges, from_url
+
+
 def match_filter_func(filters, breaking_filters=None):
     if not filters and not breaking_filters:
         return None
