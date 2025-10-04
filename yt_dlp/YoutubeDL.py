@@ -93,6 +93,7 @@ from .utils import (
     DateRange,
     DownloadCancelled,
     DownloadError,
+    download_range_func,
     EntryNotInPlaylist,
     ExistingVideoReached,
     ExtractorError,
@@ -141,6 +142,7 @@ from .utils import (
     orderedSet,
     orderedSet_from_options,
     parse_filesize,
+    parse_optional_ranges,
     preferredencoding,
     prepend_extension,
     remove_terminal_sequences,
@@ -776,6 +778,13 @@ class YoutubeDL:
 
         self.params.setdefault('forceprint', {})
         self.params.setdefault('print_to_file', {})
+
+        if self.params.get('download_sections') is not None and self.params.get('download_ranges') is None:
+            try:
+                self.params['download_ranges'] = download_range_func(
+                    *parse_optional_ranges(self.params['download_sections']))
+            except ValueError as err:
+                raise YoutubeDLError(err)
 
         # Compatibility with older syntax
         if not isinstance(params['forceprint'], dict):

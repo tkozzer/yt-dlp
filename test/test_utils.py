@@ -91,6 +91,7 @@ from yt_dlp.utils import (
     parse_dfxp_time_expr,
     parse_duration,
     parse_filesize,
+    parse_optional_ranges,
     parse_iso8601,
     parse_qs,
     parse_resolution,
@@ -2231,6 +2232,30 @@ Line 1
         test(self._JWT_WITH_REORDERED_HEADERS)
         test(self._JWT_WITH_REORDERED_HEADERS_AND_RS256_ALG)
         test(self._JWT_WITH_EXTRA_HEADERS_AND_ES256_ALG)
+
+    def test_parse_optional_ranges_regex(self):
+        chapters, ranges, from_url = parse_optional_ranges('intro')
+        self.assertEqual([regex.pattern for regex in chapters], ['intro'])
+        self.assertEqual(ranges, [])
+        self.assertFalse(from_url)
+
+    def test_parse_optional_ranges_time(self):
+        chapters, ranges, from_url = parse_optional_ranges('*10-20')
+        self.assertEqual(chapters, [])
+        self.assertEqual(ranges, [(10.0, 20.0)])
+        self.assertFalse(from_url)
+
+    def test_parse_optional_ranges_from_url(self):
+        chapters, ranges, from_url = parse_optional_ranges('*from-url')
+        self.assertEqual(chapters, [])
+        self.assertEqual(ranges, [])
+        self.assertTrue(from_url)
+
+    def test_parse_optional_ranges_invalid(self):
+        with self.assertRaises(ValueError):
+            parse_optional_ranges('*invalid-range')
+        with self.assertRaises(ValueError):
+            parse_optional_ranges('[')
 
 
 if __name__ == '__main__':
